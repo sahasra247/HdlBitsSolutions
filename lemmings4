@@ -1,0 +1,105 @@
+module top_module(
+    input clk,
+    input areset,    // Freshly brainwashed Lemmings walk left.
+    input bump_left,
+    input bump_right,
+    input ground,
+    input dig,
+    output walk_left,
+    output walk_right,
+    output aaah,
+    output digging ); 
+    
+    reg [2:0] state,next_state;
+    wire out,enable;
+    parameter left=3'd0,right=3'd1,fall_l=3'd2,fall_r=3'd3,dig_l=3'd4,dig_r=3'd5 ,splat=3'd6;
+    always @(*) begin
+        case(state)
+            left:begin
+                case({ground,dig})
+                    2'b00:next_state=fall_l;
+                    2'b01:next_state=fall_l;
+                    2'b10:next_state=(bump_left)?right:left;
+                    2'b11:next_state=dig_l;
+                endcase
+            end
+            right:begin
+                case({ground,dig})
+                    2'b00:next_state=fall_r;
+                    2'b01:next_state=fall_r;
+                    2'b10:next_state=(bump_right)?left:right;
+                    2'b11:next_state=dig_r;
+                endcase
+            end
+            fall_l:if (!out) begin
+                next_state=(ground)?left:fall_l;
+            end 
+            else next_state=splat;
+              
+            fall_r:if(!out) begin
+                next_state=(ground)?right:fall_r;
+            end
+            else next_state=splat;
+            
+            dig_l:next_state=(ground)?dig_l:fall_l;
+            dig_r:next_state=(ground)?dig_r:fall_r;
+            
+        endcase
+    end
+    
+    always @(posedge clk,posedge areset) begin
+        if(areset) state<=left;
+        else state<=next_state;
+    end
+    counter20 counter(clk,enable,out);
+    
+    assign walk_left=((state==left)&(~(state==splat)));
+    assign walk_right=((state==right)&(~(state==splat)));
+    assign aaah=(((state==(fall_l))|(state==(fall_r)))&(~(state==splat)));
+    assign digging=(((state==(dig_l))|(state==(dig_r)))&(~(state==splat)));
+    assign enable=(state==(fall_l))|(state==(fall_r));
+           
+                
+endmodule
+
+module counter20 (   
+    input clk,enable,
+    output out
+);
+    wire out1;
+    reg q = 1'b0; // Initialize q
+
+    counter10 counter0(clk,enable, out1);
+
+    always @(posedge clk) begin
+        if(out1) begin
+            if (out) q <= 1'b0;
+            else q <= ~q;
+        end
+    end
+
+    assign out = out1 & q;
+endmodule 
+
+module counter10 (
+    input clk,
+    input enable,
+    output out
+);
+    reg [3:0] q = 4'b0; // Initialize q
+
+    always @(posedge clk) begin
+        if(enable) begin
+            if (q == 4'd9)
+                q <= 4'b0000;
+            else begin
+                q[0] <= 1'b1 ^ q[0];
+                q[1] <= (1'b1 & q[0]) ^ q[1];
+                q[2] <= (1'b1 & q[0] & q[1]) ^ q[2];
+                q[3] <= (1'b1 & q[0] & q[1] & q[2]) ^ q[3];
+            end
+        end
+    end
+
+    assign out = (q == 4'd9);
+endmodule
